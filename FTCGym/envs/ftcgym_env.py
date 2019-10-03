@@ -2,6 +2,8 @@ import gym
 from gym import spaces
 import numpy as np
 import math
+import sys
+from six import StringIO
 
 
 class FTCGymEnv(gym.Env):
@@ -12,11 +14,12 @@ class FTCGymEnv(gym.Env):
         self.pos = []
         self.target = []
         self.v = []
-        self.scale = [0.01, 0.01]
+        self.scale = [0.02, 0.02]
         self.lower_motor_bounds = np.array([-1, -1, -1, -1])
         self.upper_motor_bounds = np.array([1, 1, 1, 1])
         self.should_reset = False
         self.close_enough = 100000
+        self.distance = 0
 
         self.action_space = spaces.Box(low=self.lower_motor_bounds, high=self.upper_motor_bounds)
 
@@ -31,11 +34,12 @@ class FTCGymEnv(gym.Env):
         assert self.action_space.contains(action)
 
         v = self._sum_velocity(action)
-        self.pos = np.add(self.pos, v)
+        self.pos = np.round(np.add(self.pos, v), 2)
         ob = self.pos
-        p1 = math.hypot(self.pos[0], self.pos[1])
-        p2 = math.hypot(self.target[0], self.target[1])
-        reward = 1 / (p2-p1)
+        self.distance = np.round(math.sqrt(
+                                 math.fabs((self.target[1]-self.pos[1])**2 -
+                                           (self.target[0]-self.pos[0])**2)), 2)
+        reward = 1 / self.distance
 
         if reward > self.close_enough:
             self.should_reset = True
@@ -48,6 +52,12 @@ class FTCGymEnv(gym.Env):
         return self.pos
 
     def render(self, mode='human'):
+
+        outfile = StringIO() if mode == 'ansi' else sys.stdout
+        outfile.write(str(self.pos))
+        outfile.write("\n")
+        outfile.write(str(self.distance))
+        outfile.write("\n")
         return
 
     def _sum_velocity(self, action):
@@ -66,7 +76,7 @@ class FTCGymEnv(gym.Env):
 
     def _randomize_starting(self):
 
-        r = np.random.rand(1, 2)
+        r = np.random.rand(2)
         self.pos = np.round(r*12, 2)
-        r = np.random.rand(1, 2)
+        r = np.random.rand(2)
         self.target = np.round(r*12, 2)

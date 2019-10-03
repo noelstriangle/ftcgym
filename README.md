@@ -1,0 +1,1 @@
+This is an OpenAi gym meant for running FTC-like robots in a virtual space.

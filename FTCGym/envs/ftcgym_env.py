@@ -4,6 +4,7 @@ import numpy as np
 import math
 import sys
 from six import StringIO
+import matplotlib.pyplot as plt
 
 
 class FTCGymEnv(gym.Env):
@@ -18,8 +19,12 @@ class FTCGymEnv(gym.Env):
         self.lower_motor_bounds = np.array([-1, -1, -1, -1])
         self.upper_motor_bounds = np.array([1, 1, 1, 1])
         self.should_reset = False
-        self.close_enough = 100000
+        self.close_enough = 0.05
         self.distance = 0
+        self.scatter_thickness = 4
+
+        self.x = []
+        self.y = []
 
         self.action_space = spaces.Box(low=self.lower_motor_bounds, high=self.upper_motor_bounds)
 
@@ -28,36 +33,55 @@ class FTCGymEnv(gym.Env):
 
         self.observation_space = spaces.Box(low=self.lower_pos, high=self.upper_pos)
         self._randomize_starting()
+        self.x = np.append(self.x, self.pos[0])
+        self.y = np.append(self.y, self.pos[1])
 
     def step(self, action):
 
         assert self.action_space.contains(action)
 
         v = self._sum_velocity(action)
+        reward = 0
         self.pos = np.round(np.add(self.pos, v), 2)
         ob = self.pos
         self.distance = np.round(math.sqrt(
                                  math.fabs((self.target[1]-self.pos[1])**2 -
                                            (self.target[0]-self.pos[0])**2)), 2)
-        reward = 1 / self.distance
 
-        if reward > self.close_enough:
+        if self.distance > self.close_enough:
+            reward = 1 / self.distance
+        else:
             self.should_reset = True
 
-        return ob, reward, self.should_reset, {}
+        self.x = np.append(self.x, self.pos[0])
+        self.y = np.append(self.y, self.pos[1])
+
+        if self.pos[0] < 0 or self.pos[0] > 12 or self.pos[1] < 0 or self.pos[1] > 12:
+            self.should_reset = True
+
+        return ob, reward, self.should_reset, {str(self.distance)+" inches away."}
 
     def reset(self):
 
         self._randomize_starting()
+        self.should_reset = False
         return self.pos
 
     def render(self, mode='human'):
 
-        outfile = StringIO() if mode == 'ansi' else sys.stdout
-        outfile.write(str(self.pos))
-        outfile.write("\n")
-        outfile.write(str(self.distance))
-        outfile.write("\n")
+        x_dots = np.delete(self.x, 0)
+        y_dots = np.delete(self.y, 0)
+
+        plt.plot(x_dots, y_dots)
+        plt.plot(self.target[0], self.target[1], 'ro')
+        plt.axis([0, 12, 0, 12])
+
+        plt.xlabel('x (inch)')
+        plt.ylabel('y (inch)')
+        plt.title('Will it work?')
+        plt.grid()
+
+        plt.show()
         return
 
     def _sum_velocity(self, action):
